@@ -314,11 +314,20 @@ select{border-radius:0;border:0;border-bottom:1px solid var(--muted);background:
 .seg.toggle button[aria-pressed="true"]{background:#fff;color:#0b1a5c}
 .topsum{padding:24px;background:var(--card);border:1px solid var(--card-line);border-radius:var(--r);gap:16px 32px}
 @media (max-width:640px){.wrap{gap:32px;padding-block:28px 56px}.row,.row+.row{padding:16px}.dist,.topsum{padding:20px 16px}}
+
+/* ---- language toggle + English (LTR) mode ---- */
+.mast{position:relative}
+.langbtn{position:absolute;top:0;inset-inline-end:0;padding:6px 12px;border:1px solid var(--card-line);border-radius:999px;background:var(--card);color:var(--fg);font:600 .8rem var(--display),var(--body);cursor:pointer}
+.langbtn:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+html.en body{direction:ltr}
+html.en .ends{direction:rtl}
+html.en .nm,html.en .ins-top bdi{text-align:left}
 </style>
 
 <div class="banner" role="img" aria-label="דגל ישראל משמאל ודגל פלסטין מימין, דוהים לקראת האמצע"></div>
 <div class="wrap">
   <header class="mast">
+    <button type="button" class="langbtn" id="langbtn" aria-label="Switch language">EN</button>
     <h1 class="brand" dir="ltr" lang="en"><span class="bw">which</span><span class="bs2">side</span></h1>
     <p class="deck">המאגר המקיף שעושה סדר בנושא</p>
     <details class="how">
@@ -476,6 +485,1072 @@ select{border-radius:0;border:0;border-bottom:1px solid var(--muted);background:
 </div>
 
 <script>
+// ---- language layer: Hebrew is the source; English is applied on top at render time ----
+const WS_LANG=(()=>{let l=null;try{l=new URLSearchParams(location.search).get('lang')}catch(e){}
+  if(l!=='en'&&l!=='he'){try{l=localStorage.getItem('ws_lang')}catch(e){}}
+  return l==='en'?'en':'he'})();
+// shared translator core (also embedded in the page)
+function mkTr(D){
+  const HEB=/[֐-׿]/, miss=new Set();
+  const fill=(e,n)=>{let i=0;return e.replace(/\{(\d)\}|#/g,(m,x)=>x!==undefined?(n[+x]??''):(n[i++]??''))};
+  function trn(t){
+    if(!HEB.test(t))return t;
+    const nums=[];const k=t.replace(/\d[\d,.]*%?/g,m=>{nums.push(m);return '#'});
+    if(D[k]!==undefined)return fill(D[k],nums);
+    let m;
+    if(t.endsWith(' ·'))return trn(t.slice(0,-2))+' ·';
+    if(t.includes(' · '))return t.split(' · ').map(trn).join(' · ');
+    if(m=/^(פלסטיני|ישראלי): (.+)$/.exec(t))return (m[1]==='פלסטיני'?'Palestinian: ':'Israeli: ')+trn(m[2]);
+    if(m=/^(.+): (\d+) פרו-פלסטיני, (\d+) פרו-ישראלי$/.exec(t))return trn(m[1])+': '+m[2]+' pro-Palestinian, '+m[3]+' pro-Israeli';
+    if(m=/^הסר סינון: (.+)$/.exec(t))return 'Remove filter: '+trn(m[1]);
+    if(m=/^(.+) \((\d[\d,]*)\)$/.exec(t))return trn(m[1])+' ('+m[2]+')';
+    if(m=/^(.+): (\d[\d,.]*%?)$/.exec(t))return trn(m[1])+': '+m[2];
+    miss.add(k);return t;
+  }
+  return {trn,miss,HEB};
+}
+
+const WS_DICT=`איש עסקים ומפיק|businessman and producer
+אישיות טלוויזיה|TV personality
+אישיות ריאליטי|reality TV personality
+אישיות רשת|internet personality
+אישיות תקשורת|media personality
+אמן|artist
+אמן מוזיקה|music artist
+אמנית אינדי|indie artist
+אמנית אלקטרונית|electronic artist
+אמנית וסופרת|artist and author
+אצן/ית אולימפי/ת|Olympic runner
+אשת טלוויזיה ומנהלת אמנים|TV personality and talent manager
+אתלט אולימפי לשעבר|former Olympic athlete
+ביולוג וסופר|biologist and author
+בלוגרית ומשפיענית|blogger and influencer
+במאי|director
+במאי אנימציה|animation director
+במאי דוקומנטרי|documentary director
+במאי וכותב|director and writer
+במאי ומפיק|director and producer
+במאי ושחקן|director and actor
+במאי ושחקן טורקי|Turkish director and actor
+במאי מצרי|Egyptian director
+במאי תיאטרון וקולנוע|theatre and film director
+במאית|director
+במאית דוקומנטרית|documentary director
+במאית וכותבת|director and writer
+במאית וסופרת|director and author
+במאית ושחקנית|director and actress
+במאית תיאטרון|theatre director
+בסיסט, The Disco Biscuits|bassist, The Disco Biscuits
+בעלי קבוצת פוטבול|NFL team owner
+ג'ודוקא|judoka
+גיטריסט|guitarist
+גיטריסט וזמר|guitarist and singer
+דובר ממשלה לשעבר ופעיל הסברה|former government spokesman and pro-Israel advocate
+דוגמן|model
+דוגמנית|model
+דוגמנית ומוזיקאית|model and musician
+די-ג'יי ושדרנית|DJ and broadcaster
+דיג'יי|DJ
+דיג'יי וכותבת שירים|DJ and songwriter
+דיג'יי ומפיק|DJ and producer
+דיג'יי ושדרנית|DJ and broadcaster
+האפיפיור (#–#)|Pope (#–#)
+היסטוריון|historian
+היסטוריון וסופר|historian and author
+היסטוריון ופודקאסטר|historian and podcaster
+הרכב אלקטרוני|electronic act
+הרכב היפ-הופ|hip-hop group
+הרכב היפ-הופ צ'יליאני|Chilean hip-hop group
+הרכב מוזיקלי|musical group
+זמר|singer
+זמר ומוזיקאי|singer and musician
+זמר ושחקן|singer and actor
+זמר טורקי|Turkish singer
+זמר ילדים|children's singer
+זמר מטאל, Avenged Sevenfold|metal singer, Avenged Sevenfold
+זמר מצרי|Egyptian singer
+זמר צ'יליאני|Chilean singer
+זמר, Backstreet Boys|singer, Backstreet Boys
+זמר, R.E.M. לשעבר|singer, formerly of R.E.M.
+זמר, Rage Against the Machine|singer, Rage Against the Machine
+זמר, TV on the Radio|singer, TV on the Radio
+זמר, Twisted Sister|singer, Twisted Sister
+זמר, זוכה אירוויזיון #|singer, Eurovision # winner
+זמר-יוצר|singer-songwriter
+זמר-יוצר, Five for Fighting|singer-songwriter, Five for Fighting
+זמר/ת|singer
+זמרת|singer
+זמרת אינדונזית|Indonesian singer
+זמרת ודיג'יי|singer and DJ
+זמרת ויוצרת תוכן|singer and content creator
+זמרת וכותבת שירים|singer and songwriter
+זמרת וכנרת|singer and violinist
+זמרת ומפיקה|singer and producer
+זמרת ומשוררת|singer and poet
+זמרת וראפרית|singer and rapper
+זמרת ושחקנית|singer and actress
+זמרת טורקייה|Turkish singer
+זמרת ילדים|children's singer
+זמרת לבנונית|Lebanese singer
+זמרת מצרית|Egyptian singer
+זמרת נו-מטאל|nu-metal singer
+זמרת פלסטינית|Palestinian singer
+זמרת, Little Mix|singer, Little Mix
+זמרת-יוצרת|singer-songwriter
+זמרת-יוצרת צ'יליאנית|Chilean singer-songwriter
+חברת הפרלמנט האירופי|Member of the European Parliament
+חברת פרלמנט פורטוגלית|Portuguese member of parliament
+חוקר מדע המדינה|political scientist
+חוקרת וסופרת|scholar and author
+טניסאית|tennis player
+יוטיובר|YouTuber
+יוטיובר ומאלף כלבים|YouTuber and dog trainer
+יוטיובר ומשפיען|YouTuber and influencer
+יוטיובר וסופר|YouTuber and author
+יוטיובר וסטרימר|YouTuber and streamer
+יוטיובר וסטרימר פלסטיני|Palestinian YouTuber and streamer
+יוטיובר וקומיקאי|YouTuber and comedian
+יוטיובר, H# Podcast|YouTuber, H# Podcast
+יוטיובר, The Try Guys|YouTuber, The Try Guys
+יוטיוברית|YouTuber
+יוטיוברית ומשפיענית|YouTuber and influencer
+יועץ מדיה ויוצר תוכן|media consultant and content creator
+יוצר דוקומנטרי|documentary maker
+יוצר טלוויזיה|TV creator
+יוצר טלוויזיה ומנחה|TV creator and host
+יוצר קולנוע|filmmaker
+יוצר קולנוע וטלוויזיה|film and TV creator
+יוצר תוכן|content creator
+יוצר תוכן TikTok|TikTok creator
+יוצר תוכן אינדונזי|Indonesian content creator
+יוצר תוכן ביוטיוב|YouTube creator
+יוצר תוכן מאיחוד האמירויות|Emirati content creator
+יוצר תוכן קולינרי|food content creator
+יוצרת וכותבת|creator and writer
+יוצרת ושחקנית|creator and actress
+יוצרת תוכן|content creator
+יוצרת תוכן TikTok|TikTok creator
+יוצרת תוכן ושחקנית|content creator and actress
+יוצרת תוכן לילדים ביוטיוב|children's YouTube creator
+יזם ואישיות רשת|entrepreneur and internet personality
+יזם ויוצר תוכן|entrepreneur and content creator
+יזם, בעלי X וטסלה|entrepreneur, owner of X and Tesla
+יזם, מייסד Y Combinator|entrepreneur, founder of Y Combinator
+יזם, ממייסדי Twitch|entrepreneur, Twitch co-founder
+יזמית, דוגמנית לשעבר|entrepreneur, former model
+כדורגלן|footballer
+כדורגלן לשעבר|former footballer
+כדורגלנית לשעבר|former footballer
+כדורסלן NBA|NBA player
+כדורסלן NBA ישראלי|Israeli NBA player
+כדורסלן NBA לשעבר|former NBA player
+כדורסלן לשעבר|former basketball player
+כדורסלן לשעבר (NBA)|former basketball player (NBA)
+כדורסלנית WNBA|WNBA player
+כותב|writer
+כותב ובמאי|writer and director
+כותב ויוצר טלוויזיה|writer and TV creator
+כותב ומבצע|writer and performer
+כותב ומפיק|writer and producer
+כותב ומשפיען|writer and influencer
+כותב וקומיקאי|writer and comedian
+כותב טלוויזיה ומחזאי|TV writer and playwright
+כותב קומדיה|comedy writer
+כותב קומי ומפיק|comedy writer and producer
+כותב שירים|songwriter
+כותב שירים ומוזיקאי|songwriter and musician
+כותב שירים ומפיק|songwriter and producer
+כותב, במאי ומפיק|writer, director and producer
+כותבת|writer
+כותבת ובמאית|writer and director
+כותבת ומפיקה|writer and producer
+כותבת ושחקנית|writer and actress
+כותבת שירים|songwriter
+כותבת שירים וזמרת|songwriter and singer
+כותבת, במאית ומפיקה|writer, director and producer
+כתבת ספורט|sports reporter
+להקה|band
+להקה אינסטרומנטלית|instrumental band
+להקה אירית|Irish band
+להקה צ'יליאנית|Chilean band
+להקת דום-פאנק|doom-punk band
+להקת הארדקור|hardcore band
+להקת היפ-הופ|hip-hop group
+להקת מטאל|metal band
+להקת מטאלקור|metalcore band
+להקת פאנק|punk band
+להקת פאנק-הארדקור|hardcore punk band
+להקת פולק|folk band
+להקת פוסט-הארדקור|post-hardcore band
+להקת פופ-פאנק|pop-punk band
+להקת ראפ|rap group
+להקת רוק|rock band
+להקת רוק-מטאל|rock-metal band
+לוחם MMA|MMA fighter
+לוחם UFC|UFC fighter
+לוחם UFC לשעבר|former UFC fighter
+מאייר ויוצר קומיקס|illustrator and comics artist
+מאמן כדורגל|football manager
+מאמן כדורסל|basketball coach
+מאמן כדורסל NBA|NBA coach
+מגיש The Young Turks|host of The Young Turks
+מגיש פודקאסט ומשפיען|podcast host and influencer
+מגישת The Young Turks|host of The Young Turks
+מגישת פודקאסט ומשפיענית|podcast host and influencer
+מוזיקאי|musician
+מוזיקאי אלקטרוני|electronic musician
+מוזיקאי ומפיק|musician and producer
+מוזיקאי ומשורר|musician and poet
+מוזיקאי מצרי|Egyptian musician
+מוזיקאי פלסטיני|Palestinian musician
+מוזיקאי צ'יליאני|Chilean musician
+מוזיקאי, #cc|musician, #cc
+מוזיקאי, Heaven #|musician, Heaven #
+מוזיקאי, Kiss|musician, Kiss
+מוזיקאי, Pink Floyd לשעבר|musician, formerly of Pink Floyd
+מוזיקאי, Radiohead|musician, Radiohead
+מוזיקאי, Twisted Sister|musician, Twisted Sister
+מוזיקאי/ת|musician
+מוזיקאית|musician
+מוזיקאית אלקטרונית|electronic musician
+מוזיקאית ומפיקה|musician and producer
+מוזיקאית ומשוררת|musician and poet
+מוזיקאית ושחקנית|musician and actress
+מוזיקאית צ'יליאנית|Chilean musician
+מותג אופנה (Benjamin Huseby ו-Serhat Isik)|fashion label (Benjamin Huseby and Serhat Isik)
+מחזאי|playwright
+מחזאית|playwright
+מלחין|composer
+מלחין קולנוע|film composer
+מלחינה ומוזיקאית|composer and musician
+מנהל אמנים|talent manager
+מנחה וקומיקאי|host and comedian
+מנחה טלוויזיה|TV host
+מנחה טלוויזיה וקומיקאי|TV host and comedian
+מנחה טלוויזיה ושחקן|TV host and actor
+מנחת טלוויזיה|TV host
+מנחת טלוויזיה (Judge Judy)|TV host (Judge Judy)
+מנחת טלוויזיה ומפיקה|TV host and producer
+מנחת טלוויזיה ושחקנית|TV host and actress
+מנכ"ל Meta|CEO of Meta
+מנכ"ל UN Watch|executive director of UN Watch
+מנתחת פלסטית ומשפיענית|plastic surgeon and influencer
+מעצב אופנה|fashion designer
+מעצבת אופנה|fashion designer
+מפיק|producer
+מפיק טלוויזיה|TV producer
+מפיק מוזיקלי|music producer
+מפיק מוזיקלי ודיג'יי|music producer and DJ
+מפיק מוזיקלי ומוזיקאי|music producer and musician
+מפיקה|producer
+מראיין ויוצר תוכן|interviewer and content creator
+מרצה ופעיל רשת|lecturer and online activist
+משורר|poet
+משורר ומחזאי|poet and playwright
+משורר וסופר|poet and author
+משורר פלסטיני|Palestinian poet
+משוררת|poet
+משוררת וסופרת|poet and author
+משפטן וסופר|legal scholar and author
+משפיען|influencer
+משפיען TikTok|TikTok influencer
+משפיען רשת|online influencer
+משפיענית|influencer
+משפיענית אוכל|food influencer
+משפיענית יופי|beauty influencer
+משפיענית יופי ויזמית|beauty influencer and entrepreneur
+משפיענית מאיחוד האמירויות|Emirati influencer
+משפיענית רשת|online influencer
+משקיע ומנהל קרן גידור|investor and hedge fund manager
+משקיע ופעיל|investor and activist
+מתאבק|wrestler
+מתאבק WWE|WWE wrestler
+מתאבק WWE (Mike Mizanin)|WWE wrestler (Mike Mizanin)
+מתאבקת AEW|AEW wrestler
+מתאגרף לשעבר|former boxer
+מתופף ומוזיקאי ג'אז|drummer and jazz musician
+מתעמל אולימפי|Olympic gymnast
+נגנית סיטאר|sitar player
+נהג פורמולה #|Formula # driver
+סולן Imagine Dragons|Imagine Dragons frontman
+סולן The Strokes|The Strokes frontman
+סולן להקה|band frontman
+סולן להקת המטאל Disturbed|frontman of metal band Disturbed
+סולן להקת המטאל System of a Down|frontman of metal band System of a Down
+סולנית Garbage|Garbage frontwoman
+סולנית Save Ferris|Save Ferris frontwoman
+סופר|author
+סופר והוגה|author and thinker
+סופר ויוטיובר|author and YouTuber
+סופר ומשורר|author and poet
+סופר ועיתונאי|author and journalist
+סופר ופרשן|author and commentator
+סופר, חתן פרס נובל|author, Nobel laureate
+סופר/ת|author
+סופרת|author
+סופרת ומוזיקאית|author and musician
+סופרת ומומחית מיתוג|author and branding expert
+סופרת ועיתונאית|author and journalist
+סופרת ופעילה|author and activist
+סופרת, כלת פרס נובל|author, Nobel laureate
+סטרימר (Twitch)|streamer (Twitch)
+סטרימר Twitch|Twitch streamer
+סטרימרית (Twitch)|streamer (Twitch)
+סטרימרית (YouTube)|streamer (YouTube)
+סטרימרית ויוצרת תוכן|streamer and content creator
+סייפת אולימפית|Olympic fencer
+ספורטאי אולימפי לשעבר|former Olympic athlete
+ספורטאי ומאמן בייסבול|baseball player and coach
+ספורטאי, בייסבול|baseball player
+ספורטאי, בייסבול (לשעבר)|former baseball player
+עורך דין ופעיל|lawyer and activist
+עיתונאי|journalist
+עיתונאי ובמאי|journalist and director
+עיתונאי ומגיש|journalist and presenter
+עיתונאי ומנחה|journalist and host
+עיתונאי וסופר|journalist and author
+עיתונאית|journalist
+עיתונאית ויוצרת תוכן|journalist and content creator
+עיתונאית וכותבת|journalist and writer
+עיתונאית וסופרת|journalist and author
+עיתונאית ושדרנית|journalist and broadcaster
+עיתונאית מוזיקה|music journalist
+ערוץ יוטיוב|YouTube channel
+פודקאסטר וסופר|podcaster and author
+פוליטיקאי, נכדו של נלסון מנדלה|politician, grandson of Nelson Mandela
+פזמונאי|lyricist
+פיזיקאי|physicist
+פילוסוף|philosopher
+פילוסופית|philosopher
+פילוסופית ופעילה|philosopher and activist
+פסיכולוג ופרשן|psychologist and commentator
+פסנתרן ג'אז|jazz pianist
+פסנתרן טורקי|Turkish pianist
+פסנתרנית ומוזיקאית|pianist and musician
+פעיל הסברה בדואי|Bedouin pro-Israel advocate
+פעיל הסברה ומשפיען|pro-Israel advocate and influencer
+פעיל ויוצר תוכן|activist and content creator
+פעיל זכויות אדם פלסטיני|Palestinian human rights activist
+פעיל עובדים|labor activist
+פעיל רשת|online activist
+פעיל, בנו של ממייסדי חמאס|activist, son of a Hamas co-founder
+פעילה|activist
+פעילה ויזמית|activist and entrepreneur
+פעילה ומגישת פודקאסט|activist and podcast host
+פעילה ומשפיענית|activist and influencer
+פעילה, כלת פרס נובל לשלום|activist, Nobel Peace Prize laureate
+פעילת אקלים|climate activist
+פעילת זכויות אדם|human rights activist
+פרויקט אינדי רוק|indie rock project
+פרשן ומגיש|commentator and presenter
+פרשן ומגיש פודקאסט|commentator and podcast host
+פרשנית ופודקאסטרית|commentator and podcaster
+צלם|photographer
+צלמת|photographer
+צמד היפ-הופ|hip-hop duo
+צמד יוטיוברים|YouTuber duo
+צמד מוזיקלי|musical duo
+צמד מוזיקלי אלקטרוני|electronic music duo
+צמד פאנק-ראפ|punk-rap duo
+צמד פוסט-פאנק|post-punk duo
+צמד פופ ניסיוני|experimental pop duo
+קומיקאי|comedian
+קומיקאי ובדרן|comedian and entertainer
+קומיקאי ויוצר תוכן|comedian and content creator
+קומיקאי וכותב|comedian and writer
+קומיקאי ומנחה|comedian and host
+קומיקאי ומשפיען|comedian and influencer
+קומיקאי וסאטיריקן|comedian and satirist
+קומיקאי וסופר|comedian and author
+קומיקאי ופודקאסטר|comedian and podcaster
+קומיקאי ושחקן|comedian and actor
+קומיקאי/ת|comedian
+קומיקאית|comedian
+קומיקאית ויוצרת תוכן TikTok|comedian and TikTok creator
+קומיקאית ויוצרת תוכן ביוטיוב|comedian and YouTube creator
+קומיקאית וכותבת|comedian and writer
+קומיקאית ומגישת פודקאסט|comedian and podcast host
+קומיקאית ומנחה|comedian and host
+קומיקאית ושחקנית|comedian and actress
+קומיקאית ישראלית|Israeli comedian
+ראפר|rapper
+ראפר ומנחה|rapper and host
+ראפר ומפיק|rapper and producer
+ראפר ושחקן|rapper and actor
+ראפר צ'יליאני|Chilean rapper
+ראפרית|rapper
+ראפרית וזמרת|rapper and singer
+ראש עיריית ברצלונה לשעבר|former mayor of Barcelona
+רופא וסופר|physician and author
+שדר ועיתונאי|broadcaster and journalist
+שדרן וכדורגלן לשעבר|broadcaster and former footballer
+שדרן רדיו|radio broadcaster
+שדרנית|broadcaster
+שדרנית ועיתונאית|broadcaster and journalist
+שחיין מצרי|Egyptian swimmer
+שחקן|actor
+שחקן NFL|NFL player
+שחקן NFL לשעבר|former NFL player
+שחקן הודי|Indian actor
+שחקן ובמאי|actor and director
+שחקן וזמר|actor and singer
+שחקן ויוצר|actor and creator
+שחקן ויוצר תוכן|actor and content creator
+שחקן וכותב|actor and writer
+שחקן ומחזאי|actor and playwright
+שחקן ומפיק|actor and producer
+שחקן ומתאבק לשעבר|actor and former wrestler
+שחקן וקומיקאי|actor and comedian
+שחקן טורקי|Turkish actor
+שחקן מצרי|Egyptian actor
+שחקן פוטבול (NFL)|American football player (NFL)
+שחקן פוטבול לשעבר|former American football player
+שחקן פוטבול לשעבר (NFL)|former American football player (NFL)
+שחקן קריקט|cricketer
+שחקן קריקט לשעבר|former cricketer
+שחקן רוגבי לשעבר|former rugby player
+שחקן שוודי|Swedish actor
+שחקן, כותב ובמאי|actor, writer and director
+שחקן, קומיקאי ומנחה|actor, comedian and host
+שחקן/ית|actor
+שחקנית|actress
+שחקנית בוליווד|Bollywood actress
+שחקנית ובמאית|actress and director
+שחקנית ודוגמנית|actress and model
+שחקנית וזמרת|actress and singer
+שחקנית ויוצרת|actress and creator
+שחקנית וכותבת|actress and writer
+שחקנית ומנחה|actress and host
+שחקנית ומפיקה|actress and producer
+שחקנית וסופרת|actress and author
+שחקנית וקומיקאית|actress and comedian
+שחקנית ורקדנית בבוליווד|Bollywood actress and dancer
+שחקנית טורקייה|Turkish actress
+שחקנית מצרייה|Egyptian actress
+שחקנית מקסיקנית|Mexican actress
+שחקנית פקיסטנית|Pakistani actress
+שף|chef
+שף ויוצר תוכן טורקי|Turkish chef and content creator
+שף וסופר בישול|chef and cookbook author
+שף, מייסד World Central Kitchen|chef, founder of World Central Kitchen
+תוכנית סאטירה בטלוויזיה|TV satire show
+תסריטאי|screenwriter
+תסריטאי ובמאי|screenwriter and director
+תסריטאי ומפיק|screenwriter and producer
+תסריטאית|screenwriter
+תסריטאית ובמאית|screenwriter and director
+חתימה על מכתב Artists#Ceasefire: הפסקת אש, סיוע ושחרור החטופים|Signed the Artists#Ceasefire letter: ceasefire, aid and release of the hostages
+חתימה על מכתב התמיכה בישראל של Creative Community for Peace (אוקטובר #)|Signed the Creative Community for Peace letter in support of Israel (October #)
+הסרת המוזיקה מסטרימינג בישראל (No Music for Genocide)|Pulled their music from streaming in Israel (No Music for Genocide)
+חתימה על המכתב No Hostage Left Behind לשחרור החטופים (אוקטובר #)|Signed the No Hostage Left Behind letter for the release of the hostages (October #)
+חרם הסופרים על מוסדות תרבות ישראליים|Authors' boycott of Israeli cultural institutions
+חתימה על המכתב MusicForACeasefire (נובמבר #)|Signed the MusicForACeasefire letter (November #)
+מכתב בעד השתתפות ישראל באירוויזיון|Letter supporting Israel's participation in Eurovision
+התחייבות לחרם על מוסדות קולנוע ישראליים (Film Workers for Palestine, #)|Pledged to boycott Israeli film institutions (Film Workers for Palestine, #)
+חתימה על October Declaration של British Friends of Israel (אוקטובר #)|Signed the October Declaration of British Friends of Israel (October #)
+חתימה על מכתב קאן נגד השתיקה מול רצח העם בעזה|Signed the Cannes letter against silence over the genocide in Gaza
+חתימה על מכתב היוצרים היהודים התומך בנאום האוסקר של ג׳ונתן גלייזר (אפריל #)|Signed the Jewish creatives' letter backing Jonathan Glazer's Oscars speech (April #)
+מכתב Musicians for Palestine: הפסקת אש מיידית (נובמבר #)|Musicians for Palestine letter: immediate ceasefire (November #)
+חתימה על מכתב Venice#Palestine לפסטיבל ונציה|Signed the Venice#Palestine letter to the Venice Film Festival
+חתימה על יוזמת Athletes for Ceasefire הקוראת להפסקת אש|Signed the Athletes for Ceasefire call for a ceasefire
+מכתב לראש ממשלת בריטניה: לעצור את מכירת הנשק לישראל|Letter to the UK Prime Minister: stop arms sales to Israel
+השתתפות בשידור ההתרמה Creators for Palestine|Took part in the Creators for Palestine fundraising stream
+תמיכה פומבית בעניין הפלסטיני|Public support for the Palestinian cause
+קריאה למקרון להתנות הכרה במדינה פלסטינית בשחרור החטופים ובפירוק חמאס|Called on Macron to make recognition of a Palestinian state conditional on releasing the hostages and dismantling Hamas
+מכתב Artists for Palestine UK: הפסקת אש מיידית (אוקטובר #)|Artists for Palestine UK letter: immediate ceasefire (October #)
+השתתף בסרטון Stand with Israel של שחקני בייסבול יהודים (אוקטובר #)|Appeared in the Stand with Israel video by Jewish baseball players (October #)
+התבטאות מעל במה בינלאומית|Statement from an international stage
+קריאה למקרון להכיר במדינה פלסטינית|Called on Macron to recognize a Palestinian state
+פעילות הסברה פרו-ישראלית ברשתות|Pro-Israel advocacy on social media
+תמיכה פומבית ב-Macklemore אחרי נאום Free Palestine|Publicly backed Macklemore after his Free Palestine speech
+סיכה פרו-פלסטינית בטקס גויה|Pro-Palestinian pin at the Goya Awards
+מכתב סופרים מ-# שכינה את המלחמה רצח עם|# writers' letter calling the war a genocide
+שיתפה את תמונת התמיכה בישראל של StandWithUs|Shared the StandWithUs image in support of Israel
+התבטאויות בתמיכה בישראל|Statements in support of Israel
+השתתפה במשט Global Sumud|Sailed with the Global Sumud flotilla
+השתתפות באירוע התרמה ליתומים ישראלים|Took part in a fundraiser for Israeli orphans
+חתימה על חמישה מכתבים פתוחים נגד המלחמה בעזה|Signed five open letters against the war in Gaza
+גינה את תוכניות עקירת הפלסטינים מעזה|Condemned plans to displace Palestinians from Gaza
+שיתף ותרם לקמפיין Pass the Hat למשפחות פלסטיניות|Shared and donated to the Pass the Hat campaign for Palestinian families
+מכתב הקורא לשחרור מיידי של החטופים (אוקטובר #)|Letter calling for the immediate release of the hostages (October #)
+חבר ביוזמת Athletes for Ceasefire הקוראת להפסקת אש|Member of the Athletes for Ceasefire call for a ceasefire
+פרסם All Eyes on Rafah (מאי #)|Posted All Eyes on Rafah (May #)
+Free Palestine מעל הבמה בגלסטונברי #|Free Palestine from the stage at Glastonbury #
+התבטאויות פומביות|Public statements
+קריאה להשעיית ישראל מאופ"א ב-#|Called for Israel's suspension from UEFA in #
+השתתף במשט Global Sumud|Sailed with the Global Sumud flotilla
+מכתב תמיכה בחרם של Sally Rooney|Letter supporting Sally Rooney's boycott
+חרם תרבותי, Artists for Palestine UK|Cultural boycott, Artists for Palestine UK
+תמיכה ב-BDS, מכתב תמיכה ב-Lorde|Supports BDS; letter in support of Lorde
+הצטרפות לקריאת BDS|Joined the BDS call
+מכתב נגד החרם הקולנועי (ספטמבר #)|Letter against the film boycott (September #)
+תוכן פרו-ישראלי ב-TikTok|Pro-Israel content on TikTok
+תוכן פרו-ישראלי|Pro-Israel content
+תוכן בתמיכה בישראל|Content in support of Israel
+מדבקת אבטיח בטקס גויה: הפסקת אש ועצירת סחר הנשק|Watermelon sticker at the Goya Awards: ceasefire and a halt to the arms trade
+סרט צהוב למען החטופים בטקס גלובוס הזהב|Yellow ribbon for the hostages at the Golden Globes
+סיכת דגל פלסטין בטקס האוסקר|Palestinian flag pin at the Oscars
+הובילה גל סולידריות של ידוענים עם רפיח|Led a wave of celebrity solidarity with Rafah
+שיתפה את קמפיין רפיח ברשתות|Shared the Rafah campaign on social media
+ציוץ FreePalestine ב-# נמחק לאחר מכן|FreePalestine tweet in # later deleted
+הביע תמיכה פומבית בפלסטין|Publicly voiced support for Palestine
+הביעה תמיכה פומבית בפלסטין|Publicly voiced support for Palestine
+פעילות הסברה למען ישראל|Advocacy for Israel
+הופיע באירוע Together for Palestine|Performed at the Together for Palestine event
+הופיעה באירוע Together for Palestine|Performed at the Together for Palestine event
+תמיכה פומבית ארוכת שנים ותרומה לסיוע לפלסטינים|Long-standing public support and donations to Palestinian aid
+התבטאויות ותרומה לסיוע לפלסטינים|Statements and donations to Palestinian aid
+תרומה של # מיליון דולר לסיוע הומניטרי בעזה|Donated $# million to humanitarian aid in Gaza
+התבטאויות, הפגנות וגיוס כספים|Statements, protests and fundraising
+שיבחה את תמיכת Macklemore בפלסטין והתבטאה Free Palestine|Praised Macklemore's support for Palestine and said Free Palestine
+קונצרט Voices for Gaza וקריאה להכרה במדינה פלסטינית|Voices for Gaza concert and a call to recognize a Palestinian state
+סיכות Artists#Ceasefire בטקס הגראמי|Artists#Ceasefire pins at the Grammys
+השתתפות בהפגנה פרו-פלסטינית בסאנדנס|Joined a pro-Palestinian protest at Sundance
+התבטאויות ברשתות|Statements on social media
+שימוש חוזר בפלטפורמה שלו למען פלסטין|Repeatedly uses his platform for Palestine
+תוכן פרו-פלסטיני ליותר מ-# מיליון עוקבים|Pro-Palestinian content for more than # million followers
+תוכן פרו-פלסטיני ב-TikTok|Pro-Palestinian content on TikTok
+תוכן פרו-פלסטיני|Pro-Palestinian content
+קריאות Free Palestine בגלסטונברי ובקואצ'לה #|Free Palestine chants at Glastonbury and Coachella #
+קריאות Free Palestine בגלסטונברי #|Free Palestine chants at Glastonbury #
+שינוי מילות שיר לטובת פלסטין בקואצ'לה #|Changed song lyrics in support of Palestine at Coachella #
+הבעת תמיכה בפלסטינים בקואצ'לה #|Voiced support for Palestinians at Coachella #
+התבטאות על עזה בקואצ'לה #|Spoke about Gaza at Coachella #
+שירי Hind's Hall, ההכנסות נתרמו ל-UNRWA|Hind's Hall songs, proceeds donated to UNRWA
+קמפיין ארוך שנים לחרם תרבותי על ישראל|Long-running campaign for a cultural boycott of Israel
+קריאה לחרם על אירוויזיון # חרם תרבותי|Called for a boycott of Eurovision # cultural boycott
+קריאה לחרם על אירוויזיון #|Called for a boycott of Eurovision #
+גיוס כספים לפלסטין וקריאה לחרם תרבותי|Fundraising for Palestine and a call for a cultural boycott
+פעילות פומבית מאז ביקור בגדה ב-#|Public activism since visiting the West Bank in #
+הבעת תמיכה פומבית בפלסטין|Publicly voiced support for Palestine
+הופעה בקונצרט Together for Palestine בוומבלי|Performed at the Together for Palestine concert at Wembley
+השתתפה בסרטון הקורא לחרם על מוצרים ישראליים|Appeared in a video calling for a boycott of Israeli products
+כינתה את המתקפה בעזה רצח עם וטיהור אתני, פוטרה מ-Scream VII|Called the assault on Gaza genocide and ethnic cleansing; fired from Scream VII
+כינתה את פעולות ישראל בעזה רצח עם|Called Israel's actions in Gaza a genocide
+פוסט FreePalestine ב-# חתימה על מכתב Artists#Ceasefire|FreePalestine post in # signed the Artists#Ceasefire letter
+חתימה על מכתב Musicians for Palestine|Signed the Musicians for Palestine letter
+הופיע בכאפייה במסיבת עיתונאים ב-# התבטאויות חוזרות|Wore a keffiyeh at a press conference in # repeated statements
+פוסט From the river to the sea, קריאה להשעיית ישראל מאופ"א ב-#|"From the river to the sea" post; called for Israel's suspension from UEFA in #
+הבעת תמיכה פומבית בתושבי עזה|Publicly voiced support for the people of Gaza
+סרטון נגד ההרג בעזה וקריאה להכנסת סיוע, תרומה לעזה|Video against the killing in Gaza and a call to let aid in; donated to Gaza
+סרטון תמיכה באינסטגרם|Support video on Instagram
+סטוריז פרו-פלסטיניים באינסטגרם|Pro-Palestinian Instagram stories
+תמונה עם דגל פלסטין|Photo with a Palestinian flag
+פוסט Free Palestine ב-#|Free Palestine post in #
+פוסטים בתמיכה בפלסטין|Posts in support of Palestine
+הבעת תמיכה פומבית ב-#|Publicly voiced support in #
+תמונת Free Palestine וקריאה לסיום המלחמה|Free Palestine image and a call to end the war
+פוטר ממיינץ בגלל פוסט פרו-פלסטיני, קריאה להשעיית ישראל מאופ"א|Sacked by Mainz over a pro-Palestinian post; called for Israel's suspension from UEFA
+הבעת תמיכה פומבית בפלסטינים|Publicly voiced support for Palestinians
+מחוות פרו-פלסטיניות במגרש, נקנס עליהן|Pro-Palestinian gestures on the pitch, for which he was fined
+תוכן פרו-פלסטיני קבוע, אירח את שידור Creators for Palestine|Regular pro-Palestinian content; hosted the Creators for Palestine stream
+פעילות פומבית למען ילדי עזה|Public activism for the children of Gaza
+אירחו את שידור ההתרמה Creators for Palestine|Hosted the Creators for Palestine fundraising stream
+השתתפות בשידורי התרמה לפלסטינים|Took part in fundraising streams for Palestinians
+התבטאויות ב-X על עזה|Statements on X about Gaza
+הבעת סולידריות וקריאה לתרומות|Expressed solidarity and called for donations
+השתתפה במשט Madleen ובמשט Global Sumud ב-# נעצרה וגורשה|Sailed with the Madleen and Global Sumud flotillas in # detained and deported
+ליווה ותמך במשטים לעזה ב-#|Accompanied and supported the Gaza flotillas in #
+השתתפה במשט Madleen|Sailed with the Madleen flotilla
+סירבה למכור זכויות תרגום למו"ל ישראלי, תמיכה מוצהרת ב-BDS|Refused to sell translation rights to an Israeli publisher; declared support for BDS
+חרם הסופרים (#), תמיכה ב-BDS|Authors' boycott (#), supports BDS
+מכתב תמיכה ב-Lorde|Letter in support of Lorde
+מכתב # האמנים הקורא לחרם|Letter of # artists calling for a boycott
+חתימה על תמיכה בחרם תרבותי ואקדמי|Signed in support of a cultural and academic boycott
+חתימה על מכתב CCFP ופעילות פומבית מתמשכת למען ישראל|Signed the CCFP letter and ongoing public activism for Israel
+ביקור בישראל בזמן המלחמה, סיור בכפר עזה ומפגש עם חיילים|Visited Israel during the war, toured Kfar Aza and met soldiers
+שליחה מיוחדת לשעבר למאבק באנטישמיות, פעילות הסברה מתמשכת|Former special envoy for combating antisemitism; ongoing advocacy
+ביקור בישראל ובמטה משפחות החטופים, חתום על מכתב CCFP|Visited Israel and the hostage families' headquarters; signed the CCFP letter
+מכתב בעד השתתפות ישראל באירוויזיון ומכתב נגד החרם הקולנועי|Letter supporting Israel's participation in Eurovision and letter against the film boycott
+עצומה פרו-ישראלית, תוכן קבוע ברשתות והופעות בישראל|Pro-Israel petition, regular social media content and shows in Israel
+עצומה פרו-ישראלית (ספטמבר #)|Pro-Israel petition (September #)
+מכתב # ומכתב נגד החרם הקולנועי|# letter and letter against the film boycott
+הבעת תמיכה בישראל בתוכנית הרדיו שלו|Voiced support for Israel on his radio show
+תוכן פרו-ישראלי קבוע ברשתות|Regular pro-Israel content on social media
+פעילות פומבית למען ישראל והעם היהודי|Public activism for Israel and the Jewish people
+פוסטים בתמיכה בישראל|Posts in support of Israel
+שלח מטוס עם ציוד לישראל, תרומות ואירוע התרמה|Sent a plane with supplies to Israel; donations and a fundraiser
+הבעות תמיכה חוזרות בישראל מאז # באוקטובר|Repeated expressions of support for Israel since October #
+הצהרה פומבית אחרי # באוקטובר|Public statement after October #
+פוסטים בתמיכה בישראל אחרי # באוקטובר|Posts in support of Israel after October #
+סרטון תמיכה בישראל|Video in support of Israel
+הצהרה בגינוי חמאס אחרי # באוקטובר, מאז שותק|Statement condemning Hamas after October # silent since
+הבעת תמיכה אחרי # באוקטובר, מאז שותק|Voiced support after October # silent since
+פוסט אחרי מתקפת # באוקטובר|Post after the October # attack
+תוכן בתמיכה בישראל אחרי # באוקטובר|Content in support of Israel after October #
+פעילות פרו-ישראלית בקמפוסים וברשת|Pro-Israel activism on campuses and online
+סרטוני הסברה פרו-ישראליים|Pro-Israel advocacy videos
+תוכן פרו-ישראלי ברשתות|Pro-Israel content on social media
+תיק עם הכיתוב Ceasefire על השטיח האדום באמי #|Bag reading "Ceasefire" on the red carpet at the Emmys #
+סיכת Artists#Ceasefire באמי #|Artists#Ceasefire pin at the Emmys #
+נאום בהפגנה בלונדון, השתתפות בסרטון הקורא לחרם על מוצרים ישראליים|Speech at a London protest; appeared in a video calling for a boycott of Israeli products
+הקריא שמות ילדים פלסטינים שנהרגו באירוע אמנים במדריד|Read out names of Palestinian children killed, at an artists' event in Madrid
+סיכה פרו-פלסטינית וקריאה לשלום לפלסטין בטקס גויה|Pro-Palestinian pin and a call for peace for Palestine at the Goya Awards
+אמר בטקס גויה שהתרבות אינה יכולה להיות ניטרלית מול עזה|Said at the Goya Awards that culture cannot be neutral on Gaza
+אמרה בנאום הזכייה בגויה שבעזה מתרחש רצח עם|Said in her Goya acceptance speech that a genocide is taking place in Gaza
+הבעת תמיכה בפלסטינים ובילדי עזה|Voiced support for Palestinians and the children of Gaza
+התבטאויות קבועות על המצב בפלסטין|Regular statements on the situation in Palestine
+פוסטים קבועים על המלחמה בעזה|Regular posts about the war in Gaza
+השתתפות בהפגנה פרו-פלסטינית בקנדה|Joined a pro-Palestinian protest in Canada
+תמיכה בזכויות הפלסטינים מאז # שיתוף דוח של רופאים ללא גבולות|Has supported Palestinian rights since # shared a Doctors Without Borders report
+מכתב הקורא לבריטניה לסיים את שותפותה למתרחש בעזה|Letter calling on the UK to end its complicity in what is happening in Gaza
+הקריא שמות ילדים שנהרגו בעזה, מכתב גינוי לפעולות ישראל|Read out names of children killed in Gaza; letter condemning Israel's actions
+עטה דגל פלסטין בהופעה במילאנו|Draped herself in a Palestinian flag at a show in Milan
+אמר שישראל לא צריכה להשתתף באירוויזיון|Said Israel should not take part in Eurovision
+גינה את נתניהו על חסימת הסיוע, הסתייג מהסיסמה Free Palestine|Condemned Netanyahu for blocking aid; distanced himself from the Free Palestine slogan
+ביקר את הסיוע האמריקאי הבלתי מותנה לישראל|Criticized unconditional US aid to Israel
+קראה להפסקת אש קבועה בנאום בטקס GLAAD|Called for a permanent ceasefire in a speech at the GLAAD Awards
+קרא לטראמפ ללחוץ על נתניהו לסיים את המלחמה|Called on Trump to press Netanyahu to end the war
+מכתב פתוח הקורא להפסקת אש ולהכנסת סיוע|Open letter calling for a ceasefire and for aid to be let in
+כינה את הפגיעה בבית החולים בעזה פשע מלחמה|Called the strike on the Gaza hospital a war crime
+קרא להעמיד את נתניהו לדין ולחירות לפלסטינים|Called for Netanyahu to be put on trial and for freedom for Palestinians
+גינתה את הרג האזרחים בעזה|Condemned the killing of civilians in Gaza
+גינה את התקיפה שהרגה ילדים בעזה|Condemned the strike that killed children in Gaza
+אמר ששום דבר לא מצדיק פגיעה בבית חולים|Said nothing justifies striking a hospital
+גינתה את הרג הילדים בתקיפת בית החולים|Condemned the killing of children in the hospital strike
+כינתה את הרג האזרחים בעזה פשע מלחמה וטבח|Called the killing of civilians in Gaza a war crime and a massacre
+קרא להפסקה מיידית של הפגיעה באזרחים|Called for an immediate end to harming civilians
+הניף דגל פלסטין (מאי #)|Waved a Palestinian flag (May #)
+סרטון גינוי לאלימות בעזה ותמיכה בפלסטין|Video condemning the violence in Gaza and supporting Palestine
+הניף דגל פלסטין על המגרש ב-#|Waved a Palestinian flag on the pitch in #
+תמיכה פומבית בפלסטין, לדבריו עלתה לו בחוזי חסות|Public support for Palestine, which he says cost him sponsorship deals
+דרש שדגל פלסטין יופיע בפרופיל ה-UFC שלו|Demanded the Palestinian flag appear on his UFC profile
+הניף דגל פלסטין וקרא Free Palestine בזירה|Waved a Palestinian flag and shouted Free Palestine in the ring
+כתב Palestinian lives matter|Wrote "Palestinian lives matter"
+הבעת תמיכה בפלסטין אחרי זכייה במדליה|Voiced support for Palestine after winning a medal
+הקדיש ניצחון לאחיו ואחיותיו בעזה|Dedicated a victory to his brothers and sisters in Gaza
+פרש מאולימפיאדת טוקיו כדי לא להתמודד מול ישראלי|Withdrew from the Tokyo Olympics to avoid facing an Israeli
+פוסטים על סבל הילדים בעזה וקריאה לעצור את האלימות|Posts about the suffering of Gaza's children and a call to stop the violence
+ביקור בישראל בזמן המלחמה, מפגש עם פצועים, פעילות מתמשכת|Visited Israel during the war and met the wounded; ongoing activism
+קרא לעוקביו לעמוד לצד ישראל ולגנות את חמאס|Urged his followers to stand with Israel and condemn Hamas
+פוסט I stand with Israel|"I stand with Israel" post
+הצהירה שהיא עומדת לצד ישראל|Declared that she stands with Israel
+קרא לתרום לארגונים ישראליים ואמר שישראל חייבת להגן על עצמה|Urged donations to Israeli organizations and said Israel must defend itself
+שיתף את תמונת התמיכה בישראל של StandWithUs|Shared the StandWithUs image in support of Israel
+הבעת אבל וקריאה לסולידריות עולמית עם ישראל|Expressed grief and called for global solidarity with Israel
+ביקרה בקיבוצים שנפגעו והביעה תמיכה בישראל|Visited the kibbutzim that were attacked and voiced support for Israel
+הצהרת תמיכה ושיתוף תיעוד מהחטיפות|Statement of support and shared footage of the abductions
+גיוס ותרומות למען חיילים בזמן המלחמה|Fundraising and donations for soldiers during the war
+שירות מילואים בעזה ותיעוד שלו ברשתות|Reserve duty in Gaza, documented on social media
+הביעה שברון לב על מתקפת # באוקטובר|Expressed heartbreak over the October # attack
+התפלל לקרוביו בישראל והתאבל על הקורבנות והחטופים|Prayed for his relatives in Israel and mourned the victims and hostages
+שיתפה תמונות של חטופים|Shared photos of hostages
+גינתה את חמאס כארגון טרור|Condemned Hamas as a terrorist organization
+כינתה את חמאס ארגון טרור וקראה לפתרון שתי המדינות|Called Hamas a terrorist organization and called for a two-state solution
+קראה לאפיפיור לבקר בעזה למען הילדים (אוגוסט #)|Called on the Pope to visit Gaza for the sake of the children (August #)
+שיתפה סרטון והתפללה לישראל ולשלום|Shared a video and prayed for Israel and for peace
+הצהרות חברי הלהקה נגד פעולות ממשלת ישראל בעזה (אוגוסט #)|Band members' statements against the Israeli government's actions in Gaza (August #)
+הקדישה הופעה לקורבנות פסטיבל נובה|Dedicated a show to the victims of the Nova festival
+פוסט על מתקפת # באוקטובר, נמחק לאחר מכן|Post about the October # attack, later deleted
+פוסט פרו-ישראלי, נמחק לאחר מכן|Pro-Israel post, later deleted
+סטורי Praying for Israel, נמחק לאחר מכן|"Praying for Israel" story, later deleted
+תיק BringThemHome בטקס הגראמי|BringThemHome bag at the Grammys
+כתב Free Palestine וגינה את מה שכינה רצח עם מתמשך|Wrote Free Palestine and condemned what he called an ongoing genocide
+שיתפה פוסט סולידריות עם הפלסטינים|Shared a post in solidarity with Palestinians
+הקריא שמות ילדים שנהרגו בעזה בהפגנה בסטוקהולם|Read out names of children killed in Gaza at a Stockholm protest
+ביימה את The Voice of Hind Rajab, סיכת Artists#Ceasefire באוסקר|Directed The Voice of Hind Rajab; Artists#Ceasefire pin at the Oscars
+קרא לחירות לפלסטין בהופעה בזוקאלו ודחה אלבום במחאה|Called for a free Palestine at a show in the Zócalo and delayed an album in protest
+כינתה את הסבל בעזה פשע נגד האנושות|Called the suffering in Gaza a crime against humanity
+הביעה סולידריות עם עזה והתנגדה לתוכניות העקירה|Expressed solidarity with Gaza and opposed the displacement plans
+התנגד פומבית לעקירת הפלסטינים|Publicly opposed the displacement of Palestinians
+התנגדה לעקירה וכינתה את פלסטין העניין המרכזי של הערבים|Opposed displacement and called Palestine the central Arab cause
+גינה עקירה כפויה ותמך בזכויות הפלסטינים|Condemned forced displacement and backed Palestinian rights
+הביע תמיכה נחרצת בתושבי עזה|Voiced firm support for the people of Gaza
+כינה את העקירה אסון הומניטרי וקרא לשלום צודק|Called the displacement a humanitarian disaster and called for a just peace
+הביעה צער על החורבן בעזה|Expressed sorrow over the destruction in Gaza
+הצטרפה לקמפיין הקורא להפסקת אש מיידית|Joined a campaign calling for an immediate ceasefire
+הביע צער על סבל הפלסטינים|Expressed sorrow over the suffering of Palestinians
+קרא להפסקת אש ולסיום הרג האזרחים|Called for a ceasefire and an end to the killing of civilians
+נעצרה בהפגנה בחולצת Ceasefire now|Arrested at a protest wearing a "Ceasefire now" shirt
+סיכת Artists#Ceasefire בטקס האוסקר|Artists#Ceasefire pin at the Oscars
+פוסטים על ילדים שנהרגו בעזה|Posts about children killed in Gaza
+פגש את משפחות החטופים|Met the hostages' families
+התנדב בשדרות לחילוץ משפחות, הסברה ברשתות|Volunteered in Sderot evacuating families; advocacy on social media
+הצטרף לסיור עם צה"ל בעזה, חתום על מכתב CCFP|Joined an IDF tour inside Gaza; signed the CCFP letter
+גינה את הטרור ותמך בזכותה של ישראל להגן על עצמה|Condemned terrorism and backed Israel's right to defend itself
+דבקה בקשר עם חברה ישראלית מול לחץ לחרם|Stood by her ties with an Israeli company despite boycott pressure
+הבעת תמיכה נחרצת בישראל|Voiced firm support for Israel
+הגנה פומבית על ישראל וגינוי אנטישמיות|Publicly defended Israel and condemned antisemitism
+פוסטים בתמיכה בישראל ותמונות נעדרים|Posts in support of Israel and photos of the missing
+גינתה את מי שהצדיקו את מתקפת # באוקטובר|Condemned those who justified the October # attack
+ארגן איסוף ציוד בזמן המלחמה|Organized supply drives during the war
+גייסה כסף להטסת חיילי מילואים לישראל|Raised money to fly reservists to Israel
+גינה את המתקפה וקרא להשבת החטופים|Condemned the attack and called for the return of the hostages
+התאבל על המתקפה וגינה את חמאס ואת האנטישמיות|Mourned the attack and condemned Hamas and antisemitism
+שיתפה סטוריז על המתקפה ותמונה של חטופה|Shared stories about the attack and a photo of a hostage
+שיתפה מידע על סיוע למשפחות מפונות|Shared information on aid for evacuated families
+ביקרה את נאומי Free Palestine של Macklemore: אני עומדת לצד העם שלי|Criticized Macklemore's Free Palestine speeches: "I stand with my people"
+אמר Free Palestine or nothing בשידור התרמה|Said "Free Palestine or nothing" on a fundraising stream
+אירח את Creators for Palestine, תוכן על ההבדל בין יהדות לציונות|Hosted Creators for Palestine; content on the difference between Judaism and Zionism
+אישר שתרם בעילום שם להתרמה לארגוני סיוע לפלסטינים|Confirmed he donated anonymously to a fundraiser for Palestinian aid groups
+הביע סולידריות עם הפלסטינים בשייח׳ ג׳ראח|Expressed solidarity with Palestinians in Sheikh Jarrah
+העלאת מודעות לפלסטין בחשבונות שלו|Raises awareness of Palestine on his accounts
+ביקר את ישראל ב-Daily Show: לא קרב הוגן|Criticized Israel on The Daily Show: "not a fair fight"
+ארגנה את קמפיין Pass the Hat להתרמה למשפחות פלסטיניות|Organized the Pass the Hat fundraising campaign for Palestinian families
+שיתפה ותרמה לקמפיין Pass the Hat למשפחות פלסטיניות|Shared and donated to the Pass the Hat campaign for Palestinian families
+קידמה את מיזם הסיוע Operation Olive Branch|Promoted the Operation Olive Branch aid initiative
+סרטונים הקוראים לחרם ומציעים חלופות בבעלות פלסטינית|Videos calling for a boycott and suggesting Palestinian-owned alternatives
+סרטוני בישול שמספרים על האסון בעזה|Cooking videos that tell the story of the disaster in Gaza
+סרטוני חדשות קצרים על עזה|Short news videos about Gaza
+שידורים חיים על היחס לפלסטינים|Live streams about the treatment of Palestinians
+כינתה את פינוי המשפחות הפלסטיניות פשע|Called the eviction of Palestinian families a crime
+התבטא בפומבי בעד פלסטין|Spoke out publicly for Palestine
+התבטאה בפומבי בעד פלסטין|Spoke out publicly for Palestine
+מכתב הקורא לבריטניה לעצור את מכירת הנשק לישראל|Letter calling on the UK to stop arms sales to Israel
+פעילות נגד אנטישמיות ולמען ישראל ברשתות|Activism against antisemitism and for Israel on social media
+תמיכה קולנית בישראל ובסטודנטים יהודים|Vocal support for Israel and Jewish students
+תיעד את שירות המילואים שלו בעזה|Documented his reserve duty in Gaza
+הסברה ישראלית באנגלית ברשתות|English-language Israel advocacy on social media
+פוסטים קבועים בתמיכה בישראל ונגד אנטישמיות|Regular posts supporting Israel and opposing antisemitism
+גינה את חמאס ומפרסם תוכן פרו-ישראלי|Condemned Hamas and posts pro-Israel content
+עשרות סרטונים פרו-ישראליים|Dozens of pro-Israel videos
+הגנה פומבית מתמשכת על ישראל בראיונות וברשתות|Ongoing public defense of Israel in interviews and on social media
+תוכן קומי פרו-ישראלי ב-TikTok|Pro-Israel comedy content on TikTok
+תוכן קבוע על המלחמה ובעד ישראל|Regular content about the war and in support of Israel
+קמפיינים בעד ישראל ונגד אנטישמיות|Campaigns for Israel and against antisemitism
+תמיכה פומבית בישראל ברשתות|Public support for Israel on social media
+מפיק סרטונים פרו-ישראליים|Produces pro-Israel videos
+ראיונות ותוכן פרו-ישראלי|Pro-Israel interviews and content
+מערכוני סאטירה באנגלית בעד העמדה הישראלית|English-language satire sketches backing the Israeli position
+פוסטים ויראליים בעד ישראל|Viral posts in support of Israel
+מפריך טענות על # באוקטובר ותומך בישראל|Debunks claims about October # and supports Israel
+ביקורת פומבית על יחס האו"ם לישראל|Public criticism of the UN's treatment of Israel
+פעילות משפטית והסברתית למען ישראל|Legal and public advocacy for Israel
+תוכן נגד אנטישמיות ובעד גאווה יהודית|Content against antisemitism and for Jewish pride
+התבטאויות נגד אנטישמיות|Statements against antisemitism
+תוכן על זהות יהודית ואנטישמיות, ארגון רשת משפיענים|Content on Jewish identity and antisemitism; organizes an influencer network
+ביקר את העמדות הפרו-פלסטיניות של Hasan Piker וכינה אותן אנטישמיות|Criticized Hasan Piker's pro-Palestinian positions and called them antisemitic
+הכריז Free Palestine והאשים את ישראל ברצח עם|Declared Free Palestine and accused Israel of genocide
+כינתה את ישראל מדינת אפרטהייד כובשת|Called Israel an occupying apartheid state
+פוסט תמיכה בפלסטין ובישול לילדים נפגעי מלחמה|Post supporting Palestine and cooking for children affected by war
+פעילות סיוע מתמשכת ועמידה פומבית לצד הפלסטינים|Ongoing aid work and public stand with Palestinians
+הובילה אירוע סולידריות עם פלסטין|Led a solidarity event for Palestine
+כינתה את האלימות בעזה מחרידה ובלתי מתקבלת|Called the violence in Gaza horrifying and unacceptable
+קראה להפסקת אש מיידית ברפיח ובעזה|Called for an immediate ceasefire in Rafah and Gaza
+הצטרף לקריאת ידוענים להפסקת אש בעזה|Joined a celebrity call for a ceasefire in Gaza
+ביקרה את הסיוע הצבאי האמריקאי לישראל ושיתפה קריאה להפסקת אש|Criticized US military aid to Israel and shared a call for a ceasefire
+אמרה שהיא מתפללת למען פלסטין כל יום|Said she prays for Palestine every day
+פעילות סיוע לפליטים פלסטינים בירדן|Aid work for Palestinian refugees in Jordan
+הצהרת תמיכה בחברים יהודים ובישראל אחרי מתקפת # באוקטובר|Statement of support for Jewish friends and Israel after the October # attack
+התבטאויות חוזרות על עזה ושיתוף תוכן פרו-פלסטיני|Repeated statements on Gaza and sharing pro-Palestinian content
+התבטאויות חוזרות בעד פלסטין|Repeated statements in support of Palestine
+נאומים פומביים על הסבל בעזה|Public speeches about the suffering in Gaza
+התבטאויות בתמיכה בפלסטין|Statements in support of Palestine
+התבטאות בעד פלסטין אחרי קרב|Spoke out for Palestine after a fight
+התבטאויות נגד פעולות ישראל בעזה|Statements against Israel's actions in Gaza
+אקטיביזם פרו-פלסטיני ותיק|Long-time pro-Palestinian activism
+התבטאויות פרו-פלסטיניות|Pro-Palestinian statements
+תמיכה פומבית ותיקה בפלסטינים|Long-standing public support for Palestinians
+השתתף בהפגנות פרו-פלסטיניות|Took part in pro-Palestinian protests
+השתתפה בהפגנות ובאירועי התרמה|Took part in protests and fundraising events
+כינה את המתרחש בעזה רצח עם|Called what is happening in Gaza a genocide
+ביקורת מתמשכת על המלחמה בעזה|Sustained criticism of the war in Gaza
+השתתף במשט לעזה|Sailed with a Gaza flotilla
+תוכן פרו-פלסטיני קבוע|Regular pro-Palestinian content
+ארגון הפגנות ותמיכה ב-BDS|Organizes protests and supports BDS
+מונולוגים חוזרים בעד העמדה הישראלית|Recurring monologues backing the Israeli position
+מתגורר בישראל וביקר בבסיס צבאי|Lives in Israel and visited a military base
+נאמה בצעדה נגד אנטישמיות בלונדון ופעילה נגד אנטישמיות|Spoke at the march against antisemitism in London; campaigns against antisemitism
+נאם בצעדה נגד אנטישמיות בלונדון|Spoke at the march against antisemitism in London
+הגנה פומבית מתמשכת על ישראל|Ongoing public defense of Israel
+תמיכה קולנית ומתמשכת בישראל|Vocal, sustained support for Israel
+תמיכה פומבית ומימון פעילות פרו-ישראלית|Public support and funding for pro-Israel activity
+ביקר בישראל ושידר תוכניות בעד עמדתה|Visited Israel and broadcast shows backing its position
+פוסטים פרו-ישראליים חוזרים|Repeated pro-Israel posts
+התבטאויות בתמיכה בישראל ובחטופים|Statements in support of Israel and the hostages
+ייצגה את ישראל באירוויזיון #|Represented Israel at Eurovision #
+שורדת נובה, ייצגה את ישראל באירוויזיון #|Nova survivor; represented Israel at Eurovision #
+מפיק בפועל של הסרט The Voice of Hind Rajab על ילדה שנהרגה בעזה|Executive producer of The Voice of Hind Rajab, a film about a girl killed in Gaza
+השתתף באירוע Together for Palestine|Took part in the Together for Palestine event
+השתתפה באירוע Together for Palestine|Took part in the Together for Palestine event
+השיר Red Horizon על המלחמה בעזה|The song Red Horizon, about the war in Gaza
+מכתב Musicians for Palestine: חרם על הופעות בישראל (#) וקריאה להפסקת אש|Musicians for Palestine letter: boycott of shows in Israel (#) and a call for a ceasefire
+פרשה מפסטיבל Victorious במחאה על השתקת דגל פלסטין|Pulled out of the Victorious festival in protest at the silencing of a Palestinian flag
+הניפה דגל פלסטין בפסטיבל Victorious וההופעה נקטעה|Waved a Palestinian flag at the Victorious festival and the set was cut short
+סרטון ברכה לחטופים ששוחררו|Video message welcoming released hostages
+מארגן יוזמת Athletes for Ceasefire הקוראת להפסקת אש|Organizer of the Athletes for Ceasefire call for a ceasefire
+שלפה דגל פלסטין על המסלול בתצוגת Marimekko|Pulled out a Palestinian flag on the runway at the Marimekko show
+נאום בתצוגה בפריז: הפסקת אש, שחרור החטופים ופלסטין חופשית|Speech at a Paris show: ceasefire, release of the hostages and a free Palestine
+קרא להתפלל למען הישראלים במסיבת עיתונאים|Called for prayers for Israelis at a press conference
+הציג מגן דוד בפלייאוף ושיתף תמיכה בישראל|Displayed a Star of David in the playoffs and shared support for Israel
+תרם # אלף דולר למוסדות רפואה המטפלים בפצועים ישראלים|Donated $# thousand to medical institutions treating wounded Israelis
+פוסט באינסטגרם שבו כתב שישראל טבחה באלפי ילדים פלסטינים (מאי #)|Instagram post saying Israel had slaughtered thousands of Palestinian children (May #)
+כינה את המתרחש בעזה רצח עם בפודקאסט שלו|Called what is happening in Gaza a genocide on his podcast
+ביקורת על ישראל ונתניהו בתוכניתו Last Week Tonight|Criticism of Israel and Netanyahu on his show Last Week Tonight
+ציוצים ביקורתיים על ההרס וההרג בעזה|Critical tweets about the destruction and killing in Gaza
+טענה שישראל מבצעת רצח עם בעזה|Claimed Israel is committing genocide in Gaza
+ביקורת חריפה על ישראל ועל התמיכה האמריקאית בה|Sharp criticism of Israel and of US support for it
+הביע תמיכה בפלסטינים בריאיון על המלחמה בעזה|Voiced support for Palestinians in an interview about the war in Gaza
+קרא לחקור אם מתבצע רצח עם בעזה (נובמבר #)|Called for an investigation into whether genocide is taking place in Gaza (November #)
+תיאר את המצב בשטחים כאפרטהייד בספרו The Message|Described the situation in the territories as apartheid in his book The Message
+מכנה את פעולות ישראל בעזה רצח עם|Calls Israel's actions in Gaza a genocide
+מכנה את המלחמה בעזה רצח עם בתוכניתו|Calls the war in Gaza a genocide on his show
+מכנה את המלחמה בעזה רצח עם בתוכניתה|Calls the war in Gaza a genocide on her show
+כינתה את המתרחש בעזה רצח עם (Democracy Now, #)|Called what is happening in Gaza a genocide (Democracy Now, #)
+מכנה את המלחמה בעזה רצח עם|Calls the war in Gaza a genocide
+מכנה את המתרחש בעזה רצח עם|Calls what is happening in Gaza a genocide
+אמר שישראל שולטת בעזה באמצעות הרעבה|Said Israel controls Gaza through starvation
+האשים את ישראל בפגיעה שיטתית בעובדי הסיוע שלו (אפריל #)|Accused Israel of systematically targeting his aid workers (April #)
+כינה את פעולות ישראל בעזה רצח עם|Called Israel's actions in Gaza a genocide
+ביקר בכפר עזה עם נתניהו והביע תמיכה בישראל (נובמבר #)|Visited Kfar Aza with Netanyahu and voiced support for Israel (November #)
+הוביל קמפיין נגד סטודנטים בהרווארד שהאשימו את ישראל (אוקטובר #)|Led a campaign against Harvard students who blamed Israel (October #)
+צייץ לנתניהו ב-# באוקטובר "Give them hell"|Tweeted "Give them hell" at Netanyahu on October #
+כינה את מתקפת חמאס "רוע טהור" (אוקטובר #)|Called the Hamas attack "pure evil" (October #)
+מגן בולט על ישראל, מחבר Defending Israel|Prominent defender of Israel, author of Defending Israel
+תרם לארגון סיוע ישראלי אחרי # באוקטובר|Donated to an Israeli relief organization after October #
+הגן על המפגינים הפרו-פלסטינים בקמפוסים מול ביל מאהר ("I’m with the kids", #)|Defended pro-Palestinian campus protesters against Bill Maher ("I’m with the kids", #)
+פרסמה קריאה לתרום למשפחות בעזה וברפיח (מאי #)|Posted a call to donate to families in Gaza and Rafah (May #)
+הכריזה "Free Palestine" וגינתה רצח עם בנאום פומבי|Declared "Free Palestine" and condemned genocide in a public speech
+קראה לדרוש שלום בעזה (פברואר #)|Called on people to demand peace in Gaza (February #)
+תקף את הוליווד על שתיקתה מול זוועות חמאס|Attacked Hollywood for its silence over Hamas atrocities
+היה בישראל ב-# באוקטובר ומופיע למען הקהילה היהודית מאז|Was in Israel on October # and has performed for the Jewish community since
+הושעה מ-Twitch אחרי שאמר שהפלסטינים באים מ"תרבות נחותה" (אוקטובר #)|Suspended from Twitch after saying Palestinians come from an "inferior culture" (October #)
+חתימה על מכתב היוצרים היהודים המגנה את נאום האוסקר של ג׳ונתן גלייזר (מרץ #)|Signed the Jewish creatives' letter denouncing Jonathan Glazer's Oscars speech (March #)
+המאגר המקיף שעושה סדר בנושא|The comprehensive database that sorts it all out
+איך קוראים את זה|How to read this
+מי התבטא או פעל בפומבי בעד הצד הפלסטיני, ומי בעד ישראל. כל שורה היא אדם או הרכב אחד, והעיגול מסמן את המעשה החזק ביותר שתועד לו: ככל שהוא רחוק יותר מהמרכז, המעשה חזק יותר.|Who has spoken or acted publicly for the Palestinian side, and who for Israel. Each row is one person or group, and the dot marks the strongest act documented for them: the further from the center, the stronger the act.
+איך לקרוא את הסקאלה.|How to read the scale.
+הדירוג משקף את המעשה הפומבי החזק ביותר שתועד לכל אדם, ולא את דעותיו. שלוש דרגות לכל צד: בצד הפלסטיני הפסקת אש וסיוע, תמיכה מוצהרת, וחרם או משט. בצד הישראלי גינוי חד-פעמי, חתימה על מכתב או הצהרת תמיכה, ופעילות מתמשכת.|The ranking reflects the strongest public act documented for each person, not their opinions. Three levels per side: on the Palestinian side, ceasefire and aid, declared support, and boycott or flotilla. On the Israeli side, a one-off condemnation, signing a letter or statement of support, and sustained activity.
+הקריטריון זהה לשני הצדדים: ידוען מוכר שתועדו לו מעשה או התבטאות פומביים. לא נעשה ניסיון להשוות את המספרים בין הצדדים, ומי ששתק אינו מופיע.|The criterion is the same for both sides: a well-known figure with a documented public act or statement. No attempt was made to balance the numbers between the sides, and those who stayed silent do not appear.
+חתימה על מכתב Artists#Ceasefire דורגה בדרגה הנמוכה, כי המכתב קורא גם לשחרור החטופים ומגנה הרג אזרחים משני הצדדים. מי שחתום על מכתבים משני הצדדים מוצג עם שני עיגולים.|Signing the Artists#Ceasefire letter is ranked at the lowest level, because the letter also calls for the release of the hostages and condemns the killing of civilians on both sides. Anyone who signed letters from both sides is shown with two dots.
+הנתונים והמקורות המלאים נמצאים ב|The full data and sources are in the
+מסמך הרשימה|list document
+. נכון ל-# בנובמבר #|. As of November {0}, {1}
+הרשימה מתעדכנת בסריקת חדשות שבועית.|The list is updated by a weekly news scan.
+רשימה|List
+סיכום|Summary
+מדגמים|Samples
+תובנות|Insights
+מדינות|Countries
+פרו-פלסטיני|Pro-Palestinian
+פרו-ישראלי|Pro-Israeli
+חרם, משט או BDS|Boycott, flotilla or BDS
+תמיכה מוצהרת|Declared support
+הפסקת אש וסיוע|Ceasefire and aid
+שני הצדדים|Both sides
+גינוי חד-פעמי|One-off condemnation
+מכתב או הצהרת תמיכה|Letter or statement of support
+פעילות מתמשכת|Sustained activity
+# מתוך #|# of #
+השמות כתובים באנגלית. אפשר לחפש גם תחום בעברית, למשל "מטאל" או "כדורגלן".|You can also search by profession, for example "metal" or "footballer".
+הכול|All
+סינון ומיון|Filter and sort
+תחום|Field
+כל התחומים|All fields
+שחקנים|Actors
+מוזיקאים ולהקות|Musicians and bands
+קומיקאים ומנחים|Comedians and hosts
+במאים, כותבים ומפיקים|Directors, writers and producers
+ספורטאים|Athletes
+יוצרי תוכן ומשפיענים|Content creators and influencers
+סופרים והוגים|Authors and thinkers
+פעילים, אופנה ואחרים|Activists, fashion and others
+מקור|Source
+כל המקורות|All sources
+מכתב No Hostage Left Behind (אוקטובר #)|No Hostage Left Behind letter (October #)
+חרם הקולנוע (Film Workers for Palestine)|Film boycott (Film Workers for Palestine)
+חרם הסטרימינג (No Music for Genocide)|Streaming boycott (No Music for Genocide)
+מכתב Artists#Ceasefire|Artists#Ceasefire letter
+משטים לעזה|Gaza flotillas
+חרם הסופרים|Authors' boycott
+קריאה להשעיית ישראל מאופ"א|Call to suspend Israel from UEFA
+BDS וחרם תרבותי|BDS and cultural boycott
+מכתב קאן|Cannes letter
+מכתב CCFP (אוקטובר #)|CCFP letter (October #)
+מכתבי אירוויזיון ונגד החרם|Eurovision and anti-boycott letters
+התבטאויות ופעולות שדווחו בחדשות|Statements and actions reported in the news
+אזור|Region
+כל האזורים|All regions
+צפון אמריקה|North America
+בריטניה ואירלנד|UK and Ireland
+אירופה היבשתית|Continental Europe
+ישראל|Israel
+העולם הערבי וטורקיה|Arab world and Turkey
+אמריקה הלטינית והקריביים|Latin America and the Caribbean
+דרום אסיה|South Asia
+אוסטרליה וניו זילנד|Australia and New Zealand
+אחר|Other
+מיון|Sort
+מפלסטין לישראל|From Palestine to Israel
+מישראל לפלסטין|From Israel to Palestine
+לפי שם|By name
+איפוס|Reset
+שם, מקצוע ובסיס הסיווג|Name, profession and basis for the ranking
+מרכז|Center
+חיפוש|Search
+הצג עוד #|Show # more
+חתך|View by
+לפי תחום|By field
+לפי מקור|By source
+לפי אזור|By region
+לפי רשת|By network
+תצוגה|Display
+מספרים|Numbers
+אחוזים|Percentages
+לשקלל לפי עוקבים (במיליונים)|Weight by followers (millions)
+בלי דרגה # (הפסקת אש, גינוי חד-פעמי)|Without level # (ceasefire, one-off condemnation)
+החתך לפי רשת כולל רק את מי שאפשר לשייך לרשת: יוצרי תוכן לפי הרשת העיקרית שלהם, ובעלי החשבונות הגדולים באינסטגרם ובטיקטוק. הספירה היא של אנשים, והקבוצות קטנות. בשקלול לפי עוקבים כל אדם נספר לפי מספר העוקבים שלו באותה רשת, במיליונים: לחשבונות הגדולים לפי רשימות ויקיפדיה, ולשאר היוצרים לפי הערכה מעוגלת שלי. מי שאין לי עליו מספר לא נכלל בשקלול.|The network view includes only people who can be tied to a network: content creators by their main network, and the owners of the largest Instagram and TikTok accounts. The count is of people, and the groups are small. When weighting by followers, each person counts by their follower number on that network, in millions: for the largest accounts per Wikipedia's lists, and for other creators per my rounded estimate. Anyone I have no number for is left out of the weighting.
+לחיצה על שם של קבוצה פותחת את הרשימה מסוננת לפיה. השיוך לאזור הוא סיווג שלי לפי הזיהוי העיקרי של כל אדם, ומי שלא סווג אחרת נספר בצפון אמריקה.|Clicking a group's name opens the list filtered by it. Region is my own classification by each person's main identification, and anyone not classified otherwise is counted under North America.
+מדגם|Sample
+רשתות חברתיות|Social media
+זוכי אוסקר|Oscar winners
+לא התבטאו|Stayed silent
+התבטאו|Spoke out
+מתי התבטאו|When they spoke out
+מספר ההתבטאויות בכל רבעון, לפי התאריך של המכתב, האירוע או ההצהרה שרשומים במאגר.|Number of statements per quarter, by the date of the letter, event or statement recorded in the database.
+כמה רחוק הלכו|How far they went
+חלוקת כל צד לפי עוצמת המעורבות, מהצהרה חד-פעמית ועד פעולה מתמשכת.|Each side broken down by intensity of involvement, from a one-off statement to sustained action.
+רוב הגדולים שותקים|Most of the biggest names stay silent
+שיעור מי שלא נמצאה להם שום התבטאות, בשני המדגמים הסגורים. אלה המדגמים היחידים שלא נבחרו לפי מי שהתבטא.|Share of people for whom no statement was found, in the two closed samples. These are the only samples not selected by who spoke out.
+בעלי ההשפעה הגדולה ביותר בכל צד|The most influential on each side
+עשרת בעלי קהל העוקבים הגדול ביותר בכל צד, במיליוני עוקבים ברשת העיקרית שלהם. נכללים רק מי שיש לגביהם מספר עוקבים.|The ten people with the largest audience on each side, in millions of followers on their main network. Only those with a known follower count are included.
+לכלול גם דרגה # (הפסקת אש, גינוי חד-פעמי)|Include level # too (ceasefire, one-off condemnation)
+איזה צד חזק באיזו רשת|Which side is stronger on which network
+חלוקת האנשים המשויכים לכל רשת בין שני הצדדים, ומתחת סך העוקבים של כל צד.|How the people tied to each network split between the two sides, with each side's total followers underneath.
+כל המספרים מחושבים מהמאגר עצמו ומתעדכנים איתו. אזור או תחום נכללים בדירוג רק אם יש בהם # שמות לפחות.|All figures are computed from the database itself and update with it. A region or field is ranked only if it has at least # names.
+עמדות רשמיות של מדינות מאז # באוקטובר #: הצבעות באו"ם, הכרה במדינה פלסטינית, התביעה בהאג, אמברגו נשק, ניתוק יחסים ושגרירויות בירושלים. המדינות נספרות בנפרד ממאגר האנשים.|Official positions of states since October {0}, {1}: UN votes, recognition of a Palestinian state, the ICJ case, arms embargoes, cutting ties, and embassies in Jerusalem. Countries are counted separately from the people database.
+נגד ישראל|Against Israel
+בעד ישראל|For Israel
+מעורב|Mixed
+מדיניות משתנה עם חילופי ממשלות, ולכן לכל צעד מצוין תאריך. מקורות: ויקיפדיה (הכרה בפלסטין, התביעה בהאג, החלטת העצרת ES-#/# התגובות הבינלאומיות), JINSA ו-Wikiwand לגבי אמברגו נשק, ודיווחי חדשות על שגרירויות בירושלים. נכון לנובמבר #|Policy shifts when governments change, so each step carries a date. Sources: Wikipedia (recognition of Palestine, the ICJ case, General Assembly resolution ES-#/# international reactions), JINSA and Wikiwand on arms embargoes, and news reports on embassies in Jerusalem. As of November #
+עוד פרוייקט מבית היוצר של איתמר ורעמסס|Another project by Itamar and Ramses
+דגל ישראל משמאל ודגל פלסטין מימין, דוהים לקראת האמצע|Israeli flag on the left and Palestinian flag on the right, fading toward the middle
+התפלגות|Distribution
+התפלגות לפי דרגה|Distribution by level
+סינון לפי דרגה|Filter by level
+חיפוש שם באנגלית|Search by name
+חיפוש לפי שם באנגלית או מקצוע בעברית|Search by name or profession
+צד|Side
+פלסטין|Palestine
+תצוגה במספרים או באחוזים|Display as numbers or percentages
+מקרא|Legend
+סינון|Filter
+מפת העולם לפי עמדת כל מדינה|World map by each country's position
+סינון מדינות|Filter countries
+נקה הכול|Clear all
+אינסטגרם|Instagram
+יוטיוב|YouTube
+טיקטוק|TikTok
+פודקאסט|Podcast
+סטרימינג (Twitch, Kick)|Streaming (Twitch, Kick)
+X (טוויטר)|X (Twitter)
+פייסבוק|Facebook
+# האנשים וההרכבים עם הכי הרבה עוקבים: # החשבונות הגדולים באינסטגרם ו-# הגדולים בטיקטוק, בלי מותגים ופוליטיקאים. לכל אחד מוצג הסטטוס שלו במאגר. "לא התבטא" פירושו שלא נמצאה התבטאות פומבית בסריקה, ולא הוכחה לשתיקה.|The # people and groups with the most followers: the # largest Instagram accounts and the # largest on TikTok, excluding brands and politicians. Each is shown with their status in the database. "Stayed silent" means no public statement was found in the scan, not proof of silence.
+# מיליון עוקבים באינסטגרם|# million followers on Instagram
+הצהרות פרו-פלסטיניות שיוחסו לו התבררו כזיוף|Pro-Palestinian statements attributed to him turned out to be fake
+לא התבטא/ה|Stayed silent
+הביע צער על האלימות בעזה ב-# לא נמצאה התבטאות מאז # באוקטובר|Expressed sorrow over the violence in Gaza in # no statement found since October #
+ספגה ביקורת על הקרנת סרטה בישראל, לא התבטאה|Criticized for screening her film in Israel; did not speak out
+לא נמצאה התבטאות פומבית בסריקה|No public statement found in the scan
+מעריצים קראו לה לשבור שתיקה, לא התבטאה|Fans urged her to break her silence; she did not speak out
+הופיעה ברשימות החסימה של Blockout #|Appeared on the Blockout # block lists
+# מיליון עוקבים בטיקטוק|# million followers on TikTok
+שלטי חוצות נגד ישראל שיוחסו לו היו פריצה, והדובר שלו הכחיש קשר|Anti-Israel billboards attributed to him were a hack, and his spokesperson denied any link
+זמרת, Blackpink|singer, Blackpink
+ביטלה הופעה בישראל ב-# לא נמצאה התבטאות מאז # באוקטובר|Cancelled a show in Israel in # no statement found since October #
+נכללה ברשימות החסימה של Blockout #|Included on the Blockout # block lists
+יוצרת תוכן מקסיקנית|Mexican content creator
+מעריצים ועיתונאים קראו ללהקה להתבטא, והיא לא התבטאה|Fans and journalists urged the band to speak out, and it did not
+יוצרת תוכן אינדונזית|Indonesian content creator
+ציינה דגל ישראל בקהל בהופעה וספגה בוז, לא התבטאה על המלחמה|Pointed out an Israeli flag in the crowd at a show and was booed; did not comment on the war
+יוצר תוכן יפני|Japanese content creator
+ביטבוקסר ויוצר תוכן|beatboxer and content creator
+נכללה בקריאות החסימה של Blockout #|Included in the Blockout # block calls
+רקדן ויוצר תוכן|dancer and content creator
+זמר ויוצר תוכן|singer and content creator
+רקדנית ויוצרת תוכן|dancer and content creator
+יוצר תוכן מקסיקני|Mexican content creator
+כל # השחקנים והשחקניות שזכו באוסקר על משחק בטקסים של # עד # לכל אחד מוצג הסטטוס שלו במאגר. "לא התבטא" פירושו שלא נמצאה התבטאות פומבית בסריקה, ולא הוכחה לשתיקה.|All # actors and actresses who won an acting Oscar at the ceremonies from # to # Each is shown with their status in the database. "Stayed silent" means no public statement was found in the scan, not proof of silence.
+אוסקר #|Oscar #
+אוסקר # #|Oscar # #
+האזור הכי פרו-פלסטיני|Most pro-Palestinian region
+# פרו-פלסטינים, # פרו-ישראלים|# pro-Palestinian, # pro-Israeli
+האזור הכי פרו-ישראלי (מלבד ישראל)|Most pro-Israeli region (excluding Israel)
+התחום הכי פרו-פלסטיני|Most pro-Palestinian field
+התחום הכי פרו-ישראלי|Most pro-Israeli field
+מבוסס על # מתוך # רשומות שיש להן תאריך. חלק מהתאריכים הם של המכתב או האירוע, ומי שחתם על כמה מכתבים נספר לפי הרשומה שמופיעה במאגר.|Based on # of # records that have a date. Some dates are those of the letter or event, and anyone who signed several letters is counted by the record shown in the database.
+בעלי החשבונות הגדולים ברשתות|Owners of the largest social media accounts
+מתוך|of
+זוכי אוסקר על משחק, # עד #|Acting Oscar winners, # to #
+נוטה לצד הישראלי|Leans Israeli
+# פרו-ישראלים|# pro-Israeli
+# פרו-פלסטינים|# pro-Palestinian
+עוקבים במיליונים: # בצד הפלסטיני, # בצד הישראלי|Followers in millions: # on the Palestinian side, # on the Israeli side
+נוטה לצד הפלסטיני|Leans Palestinian
+רבעון # #|Q# #
+# מדינות עם צעדים לשני הכיוונים|# countries with steps in both directions
+איי פוקלנד (איי מלווינס)|Falkland Islands (Islas Malvinas)
+אמברגו, ניתוק, סנקציות|Embargo, cut ties, sanctions
+הכרה, האג, הגבלת נשק|Recognition, ICJ, arms limits
+הצבעה בעד הפסקת אש|Voted for a ceasefire
+הצבעה נגד או הימנעות|Voted against or abstained
+התנגדות לתביעה|Opposed the case
+נשק או שגרירות בירושלים|Arms or embassy in Jerusalem
+אמברגו, ניתוק יחסים או סנקציות|Embargo, cutting ties or sanctions
+הצביעה בעד הפסקת אש מיידית בעצרת האו"ם (דצמבר #)|Voted for an immediate ceasefire at the UN General Assembly (December #)
+הצטרפה לתביעת רצח העם נגד ישראל בהאג (אוגוסט #)|Joined the genocide case against Israel at the ICJ (August #)
+החזירה את השגריר מישראל (נובמבר #)|Recalled its ambassador from Israel (November #)
+עצרה את הסחר עם ישראל|Halted trade with Israel
+קבוצת האג: התחייבות לאמברגו נשק ולצעדים נגד ישראל (יולי #)|Hague Group: pledged an arms embargo and measures against Israel (July #)
+הצטרפה לתביעת רצח העם נגד ישראל בהאג (אוקטובר #)|Joined the genocide case against Israel at the ICJ (October #)
+ניתקה את היחסים עם ישראל (אוקטובר #)|Cut ties with Israel (October #)
+הגישה את תביעת רצח העם נגד ישראל בהאג (דצמבר #)|Filed the genocide case against Israel at the ICJ (December #)
+הכירה במדינה פלסטינית (מאי #)|Recognized a Palestinian state (May #)
+הצטרפה לתביעת רצח העם נגד ישראל בהאג (יוני #)|Joined the genocide case against Israel at the ICJ (June #)
+אמברגו נשק מלא בחוק (אוקטובר #)|Full arms embargo in law (October #)
+הצטרפה לתביעת רצח העם נגד ישראל בהאג (דצמבר #)|Joined the genocide case against Israel at the ICJ (December #)
+אסרה מעבר נשק לישראל בשטחה ובמרחב האווירי שלה (אוקטובר # ינואר #)|Banned arms transit to Israel through its territory and airspace (October # January #)
+הצטרפה לתביעת רצח העם נגד ישראל בהאג (ינואר #)|Joined the genocide case against Israel at the ICJ (January #)
+השעתה את היחסים עם ישראל (נובמבר #)|Suspended ties with Israel (November #)
+הביעה תמיכה פומבית בתביעת רצח העם בהאג|Publicly backed the genocide case at the ICJ
+הכירה במדינה פלסטינית (יוני #)|Recognized a Palestinian state (June #)
+אסרה כל סחר בנשק עם ישראל (יולי #)|Banned all arms trade with Israel (July #)
+עימות צבאי ישיר עם ישראל (# #)|Direct military confrontation with Israel (# #)
+הכרה, האג או הגבלת נשק|Recognition, ICJ or arms limits
+הכירה במדינה פלסטינית (ספטמבר #)|Recognized a Palestinian state (September #)
+הפסיקה לאשר יצוא נשק חדש לישראל|Stopped approving new arms exports to Israel
+הצטרפה לתביעת רצח העם נגד ישראל בהאג (ספטמבר #)|Joined the genocide case against Israel at the ICJ (September #)
+הכירה במדינה פלסטינית (פברואר #)|Recognized a Palestinian state (February #)
+הצטרפה לתביעת רצח העם נגד ישראל בהאג (מאי #)|Joined the genocide case against Israel at the ICJ (May #)
+הכירה במדינה פלסטינית (אפריל #)|Recognized a Palestinian state (April #)
+הצטרפה לתביעת רצח העם נגד ישראל בהאג (מרץ #)|Joined the genocide case against Israel at the ICJ (March #)
+נמנעה בהצבעה על הפסקת אש מיידית בעצרת האו"ם (דצמבר #)|Abstained in the UN General Assembly vote on an immediate ceasefire (December #)
+עצרה אספקת חלקי F-# לישראל (נובמבר #)|Halted the supply of F-# parts to Israel (November #)
+ניתקה את היחסים עם ישראל (מאי #)|Cut ties with Israel (May #)
+שגרירות בירושלים|Embassy in Jerusalem
+משכה את הצטרפותה לתביעה בהאג (ספטמבר #)|Withdrew from the ICJ case (September #)
+השעתה כ-# רישיונות ליצוא נשק (ספטמבר #)|Suspended about # arms export licenses (September #)
+התנגדה פומבית לתביעת רצח העם בהאג|Publicly opposed the genocide case at the ICJ
+השעתה רישיונות חדשים ליצוא נשק לישראל|Suspended new arms export licenses to Israel
+אספקת נשק או שגרירות בירושלים|Arms supply or embassy in Jerusalem
+התנגדות לתביעה או שגרירות מובטחת|Opposed the case or pledged an embassy
+התחייבה להעביר את השגרירות לירושלים (ספטמבר #)|Pledged to move its embassy to Jerusalem (September #)
+הודיעה על פתיחת שגרירות בירושלים ב-#|Announced it would open an embassy in Jerusalem in #
+הצביעה נגד הפסקת אש מיידית בעצרת האו"ם (דצמבר #)|Voted against an immediate ceasefire at the UN General Assembly (December #)
+שגרירות בירושלים (ספטמבר #)|Embassy in Jerusalem (September #)
+הודיעה על העברת השגרירות לירושלים ב-#|Announced it would move its embassy to Jerusalem in #
+ספקית הנשק העיקרית לישראל והטילה וטו על החלטות במועצת הביטחון|Israel's main arms supplier; vetoed resolutions at the Security Council
+שגרירות בירושלים (דצמבר #)|Embassy in Jerusalem (December #)
+ספקית הנשק השנייה בגודלה לישראל; הגבילה חלק מהיצוא בין אוגוסט לנובמבר #|Israel's second-largest arms supplier; restricted some exports between August and November #
+ברשימה מוצגות רק מדינות שנקטו צעד מעבר להצבעה. עוד # מדינות רק הצביעו בעד הפסקת אש בדצמבר # והן צבועות במפה באדום בהיר.|The list shows only countries that took a step beyond a vote. # more countries only voted for a ceasefire in December # and are shaded light red on the map.`;
+const WS_T=(()=>{
+  if(WS_LANG!=='en')return s=>s;
+  const D={};WS_DICT.split('\n').forEach(l=>{const i=l.indexOf('|');if(i>0)D[l.slice(0,i)]=l.slice(i+1)});
+  const T=mkTr(D);const cache=new Map();
+  const tx=s=>{if(!T.HEB.test(s))return s;let v=cache.get(s);if(v===undefined){const m=/^(\s*)([\s\S]*?)(\s*)$/.exec(s);v=m[1]+T.trn(m[2].replace(/\s+/g,' '))+m[3];cache.set(s,v)}return v};
+  const ATTR=['placeholder','aria-label','title'];
+  const walk=n=>{
+    if(n.nodeType===3){const pe=n.parentNode;if(pe&&(pe.nodeName==='SCRIPT'||pe.nodeName==='STYLE'))return;const v=tx(n.nodeValue);if(v!==n.nodeValue)n.nodeValue=v;return}
+    if(n.nodeType!==1||n.nodeName==='SCRIPT'||n.nodeName==='STYLE')return;
+    for(const a of ATTR){const v=n.getAttribute(a);if(v){const t=tx(v);if(t!==v)n.setAttribute(a,t)}}
+    for(let c=n.firstChild;c;c=c.nextSibling)walk(c);
+  };
+  document.documentElement.lang='en';document.documentElement.dir='ltr';document.documentElement.classList.add('en');
+  walk(document.body);
+  new MutationObserver(ms=>{for(const m of ms){if(m.type==='characterData')walk(m.target);else if(m.type==='attributes')walk(m.target);else m.addedNodes.forEach(walk)}})
+    .observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:ATTR});
+  return tx;
+})();
 const A4C='חתימה על מכתב Artists4Ceasefire: הפסקת אש, סיוע ושחרור החטופים';
 const FWP='התחייבות לחרם על מוסדות קולנוע ישראליים (Film Workers for Palestine, 2025)';
 const NMG='הסרת המוזיקה מסטרימינג בישראל (No Music for Genocide)';
@@ -2799,7 +3874,7 @@ const finalize=o=>{
   o.reg=regOf(o.name);
   o.key=o.p&&o.i?'B':o.p?'P'+o.p:'I'+o.i;
   o.score=o.i-o.p;
-  o.hay=(o.name+' '+o.prof).toLowerCase();
+  o.hay=(o.name+' '+o.prof+(WS_LANG==='en'?' '+WS_T(o.prof):'')).toLowerCase();
   o.srcs=[o.pb,o.ib].filter(Boolean).map(srcOf);
   return o;
 };
@@ -2883,6 +3958,12 @@ $('ftags').addEventListener('click',e=>{
 });
 $('ftoggle').addEventListener('click',()=>{
   const open=$('filters').hidden;$('filters').hidden=!open;$('ftoggle').setAttribute('aria-expanded',open);
+});
+$('langbtn').textContent=WS_LANG==='en'?'עב':'EN';
+$('langbtn').addEventListener('click',()=>{
+  const n=WS_LANG==='en'?'he':'en';try{localStorage.setItem('ws_lang',n)}catch(e){}
+  if(/lang=/.test(location.search)||!/claude|anthropic/.test(location.hostname)){try{const u=new URL(location.href);u.searchParams.set('lang',n);location.replace(u.toString());return}catch(e){}}
+  location.reload();
 });
 function update(){state.shown=120;render()}
 
@@ -3184,7 +4265,7 @@ cadd('US','f',3,'ספקית הנשק העיקרית לישראל והטילה ו
 [['US','2018'],['GT','2018'],['HN','2021'],['XK','2021'],['PG','2023'],['PY','דצמבר 2024'],['FJ','ספטמבר 2025'],['NR','2026'],['CO','2026']].forEach(([c,d])=>cadd(c,'f',3,`שגרירות בירושלים (${d})`));
 cadd('AR','f',2,'הודיעה על העברת השגרירות לירושלים ב-2026');cadd('WS','f',2,'הודיעה על פתיחת שגרירות בירושלים ב-2026');cadd('CD','f',2,'התחייבה להעביר את השגרירות לירושלים (ספטמבר 2026)');
 cadd('CO','f',1,'משכה את הצטרפותה לתביעה בהאג (ספטמבר 2026)');
-const CN=(()=>{try{const d=new Intl.DisplayNames(['he'],{type:'region'});return c=>{try{return d.of(c)||c}catch(e){return c}}}catch(e){return c=>c}})();
+const CN=(()=>{try{const d=new Intl.DisplayNames([WS_LANG],{type:'region'});return c=>{try{return d.of(c)||c}catch(e){return c}}}catch(e){return c=>c}})();
 const CLV={n:['','הצבעה בעד הפסקת אש','הכרה, האג או הגבלת נשק','אמברגו, ניתוק יחסים או סנקציות'],f:['','הצבעה נגד או הימנעות','התנגדות לתביעה או שגרירות מובטחת','אספקת נשק או שגרירות בירושלים']};
 const cside=o=>!o?'x':o.n&&o.f?(o.n>o.f?'n':o.f>o.n?'f':'m'):o.n?'n':'f';
 const ccol=o=>{const s=cside(o);if(s==='x')return '#1c2550';if(s==='m')return 'var(--mix)';const l=s==='n'?o.n:o.f,v=s==='n'?'--pal':'--isr';return l===3?`var(${v})`:`color-mix(in srgb,var(${v}) ${l===2?68:36}%,#0c1437)`};
